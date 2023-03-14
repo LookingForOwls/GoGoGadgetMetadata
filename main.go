@@ -49,12 +49,10 @@ func (c *web3) Metadata(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 			fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
 			return
 		}
-		// Testing output
-		fmt.Println("Adding token to map")
 		sm.Store(token, true)
 	}
 
-	fileBytes, err := os.ReadFile(fmt.Sprintf("%s%s.json", "metadata", ps.ByName("tokenId")))
+	fileBytes, err := os.ReadFile(fmt.Sprintf("%s%s.json", "metadata/", ps.ByName("tokenId")))
 	if err != nil {
 		fmt.Fprintf(w, "Metadata For Token: %s Not Found\n", ps.ByName("tokenId"))
 	}
@@ -76,8 +74,6 @@ func Minted(c *ethclient.Client, token int64) bool {
 }
 
 func main() {
-	InitEnvConfigs()
-
 	port := os.Getenv("PORT")
 	infura := os.Getenv("INFURA")
 
