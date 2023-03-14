@@ -45,12 +45,7 @@ func (c *web3) Metadata(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 	}
 
 	address := common.HexToAddress("0x5d3dc394D8C8310Af31e089460F7FcdC7F527604")
-	instance, err := NewStorage(address, c.client)
-	if err != nil {
-		log.Fatalf("Failed to instantiate contract: %v", err)
-	}
-
-	_ = instance
+	_ = address
 	_ = token
 
 	// if !Minted(c.client, token) {
