@@ -44,18 +44,13 @@ func (c *web3) Metadata(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 		log.Fatalf("Failed to convert: %v", err)
 	}
 
-	address := common.HexToAddress(os.Getenv("CONTRACT_ADDRESS"))
+	address := common.HexToAddress("0x5d3dc394D8C8310Af31e089460F7FcdC7F527604")
 	instance, err := NewStorage(address, c.client)
 	if err != nil {
 		log.Fatalf("Failed to instantiate contract: %v", err)
 	}
 
-	owner, err := instance.OwnerOf(&bind.CallOpts{}, big.NewInt(token))
-	if err != nil {
-		log.Fatalf("Failed to get owner: %v", err)
-	}
-
-	_ = owner
+	_ = instance
 
 	// if !Minted(c.client, token) {
 	// 	fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
