@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/julienschmidt/httprouter"
 
@@ -19,33 +20,44 @@ type web3 struct {
 	client *ethclient.Client
 }
 
+// Map for token minted status
+var sm sync.Map
+
 func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	fmt.Fprint(w, "Metadata API!\n")
 }
 
-func NewWeb3(rpc string) *web3 {
+func NewWeb3(rpc string) (*web3, error) {
 	c, err := ethclient.Dial(rpc)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	return &web3{
 		client: c,
-	}
+	}, nil
 }
 
 func (c *web3) Metadata(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// Convert tokenId in URL to Int64
 	token, _ := strconv.ParseInt(ps.ByName("tokenId"), 0, 64)
-	// Check if token minted
-	if !Minted(c.client, token) {
-		fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
-		return
+	// Check sync.Map to see if token mint status has been recorded
+	_, ok := sm.Load(token)
+	// If token set as minted in map skip web3 call.
+	if !ok {
+		// If not in map check if token minted
+		if !Minted(c.client, token) {
+			fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
+			return
+		}
+		// Testing output
+		fmt.Println("Adding token to map")
+		sm.Store(token, true)
 	}
+
 	fileBytes, err := os.ReadFile(fmt.Sprintf("%s%s.json", EnvConfigs.MetadataDir, ps.ByName("tokenId")))
 	if err != nil {
 		fmt.Fprintf(w, "Metadata For Token: %s Not Found\n", ps.ByName("tokenId"))
 	}
-
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.Write(fileBytes)
 }
@@ -66,7 +78,7 @@ func Minted(c *ethclient.Client, token int64) bool {
 func main() {
 	InitEnvConfigs()
 
-	w := NewWeb3(EnvConfigs.InfuraRPC)
+	w, _ := NewWeb3(EnvConfigs.InfuraRPC)
 
 	router := httprouter.New()
 	router.GET("/", Index)
