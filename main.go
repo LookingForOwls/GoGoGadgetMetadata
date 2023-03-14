@@ -51,6 +51,7 @@ func (c *web3) Metadata(w http.ResponseWriter, r *http.Request, ps httprouter.Pa
 	}
 
 	_ = instance
+	_ = token
 
 	// if !Minted(c.client, token) {
 	// 	fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
