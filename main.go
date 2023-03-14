@@ -39,30 +39,23 @@ func NewWeb3(rpc string) (*web3, error) {
 
 func (c *web3) Metadata(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// Convert tokenId in URL to Int64
-	token, err := strconv.ParseInt(ps.ByName("tokenId"), 0, 64)
-	if err != nil {
-		log.Fatalf("Failed to convert: %v", err)
+	token, _ := strconv.ParseInt(ps.ByName("tokenId"), 0, 64)
+
+	if !Minted(c.client, token) {
+		fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
+		return
 	}
-
-	address := common.HexToAddress("0x5d3dc394D8C8310Af31e089460F7FcdC7F527604")
-	_ = address
-	_ = token
-
-	// if !Minted(c.client, token) {
-	// 	fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
-	// 	return
-	// }
-	// // Check sync.Map to see if token mint status has been recorded
-	// _, ok := sm.Load(token)
-	// // If token set as minted in map skip web3 call.
-	// if !ok {
-	// 	// If not in map check if token minted
-	// 	if !Minted(c.client, token) {
-	// 		fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
-	// 		return
-	// 	}
-	// 	sm.Store(token, true)
-	// }
+	// Check sync.Map to see if token mint status has been recorded
+	_, ok := sm.Load(token)
+	// If token set as minted in map skip web3 call.
+	if !ok {
+		// If not in map check if token minted
+		if !Minted(c.client, token) {
+			fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
+			return
+		}
+		sm.Store(token, true)
+	}
 
 	fileBytes, err := os.ReadFile(fmt.Sprintf("%s%s.json", "metadata/", ps.ByName("tokenId")))
 	if err != nil {
