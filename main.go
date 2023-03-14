@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 
 	"github.com/julienschmidt/httprouter"
@@ -38,7 +39,11 @@ func NewWeb3(rpc string) (*web3, error) {
 
 func (c *web3) Metadata(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// Convert tokenId in URL to Int64
-	// token, _ := strconv.ParseInt(ps.ByName("tokenId"), 0, 64)
+	token, _ := strconv.ParseInt(ps.ByName("tokenId"), 0, 64)
+	if !Minted(c.client, token) {
+		fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
+		return
+	}
 	// // Check sync.Map to see if token mint status has been recorded
 	// _, ok := sm.Load(token)
 	// // If token set as minted in map skip web3 call.
