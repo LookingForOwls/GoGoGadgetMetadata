@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"net/http"
 	"os"
-	"strconv"
 	"sync"
 
 	"github.com/julienschmidt/httprouter"
@@ -24,9 +23,7 @@ type web3 struct {
 var sm sync.Map
 
 func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fileBytes, _ := os.ReadFile("metadata/1.json")
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.Write(fileBytes)
+	fmt.Fprint(w, "Metadata API!\n")
 }
 
 func NewWeb3(rpc string) (*web3, error) {
@@ -41,18 +38,18 @@ func NewWeb3(rpc string) (*web3, error) {
 
 func (c *web3) Metadata(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// Convert tokenId in URL to Int64
-	token, _ := strconv.ParseInt(ps.ByName("tokenId"), 0, 64)
-	// Check sync.Map to see if token mint status has been recorded
-	_, ok := sm.Load(token)
-	// If token set as minted in map skip web3 call.
-	if !ok {
-		// If not in map check if token minted
-		if !Minted(c.client, token) {
-			fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
-			return
-		}
-		sm.Store(token, true)
-	}
+	// token, _ := strconv.ParseInt(ps.ByName("tokenId"), 0, 64)
+	// // Check sync.Map to see if token mint status has been recorded
+	// _, ok := sm.Load(token)
+	// // If token set as minted in map skip web3 call.
+	// if !ok {
+	// 	// If not in map check if token minted
+	// 	if !Minted(c.client, token) {
+	// 		fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
+	// 		return
+	// 	}
+	// 	sm.Store(token, true)
+	// }
 
 	fileBytes, err := os.ReadFile(fmt.Sprintf("%s%s.json", "metadata/", ps.ByName("tokenId")))
 	if err != nil {
