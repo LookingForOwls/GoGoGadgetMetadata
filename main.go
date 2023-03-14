@@ -24,7 +24,9 @@ type web3 struct {
 var sm sync.Map
 
 func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fmt.Fprint(w, "Metadata API!\n")
+	fileBytes, _ := os.ReadFile("metadata/1.json")
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.Write(fileBytes)
 }
 
 func NewWeb3(rpc string) (*web3, error) {
