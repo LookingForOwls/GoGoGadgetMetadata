@@ -21,13 +21,13 @@ type web3 struct {
 }
 
 // Map for token minted status
-var sm sync.Map
+var mintedStatus sync.Map
 
-func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func indexHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	fmt.Fprint(w, "Metadata API!\n")
 }
 
-func NewWeb3(rpc string) (*web3, error) {
+func newWeb3(rpc string) (*web3, error) {
 	c, err := ethclient.Dial(rpc)
 	if err != nil {
 		return nil, err
@@ -37,45 +37,62 @@ func NewWeb3(rpc string) (*web3, error) {
 	}, nil
 }
 
-func (c *web3) Metadata(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (c *web3) metadataHandler(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	// Convert tokenId in URL to Int64
-	token, _ := strconv.ParseInt(ps.ByName("tokenId"), 0, 64)
-
-	if !Minted(c.client, token) {
-		fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
+	tokenID, err := strconv.ParseInt(ps.ByName("tokenId"), 0, 64)
+	if err != nil {
+		http.Error(w, "Invalid tokenId", http.StatusBadRequest)
 		return
 	}
-	// Check sync.Map to see if token mint status has been recorded
-	_, ok := sm.Load(token)
-	// If token set as minted in map skip web3 call.
-	if !ok {
-		// If not in map check if token minted
-		if !Minted(c.client, token) {
-			fmt.Fprintf(w, "Token %s Not Minted\n", ps.ByName("tokenId"))
-			return
-		}
-		sm.Store(token, true)
+
+	// Set default cache control for failures
+	w.Header().Set("Cache-Control", "public, no-cache")
+
+	// Check if token is minted
+	if !isMinted(c.client, tokenID) {
+		http.Error(w, fmt.Sprintf("Token %d Not Minted\n", tokenID), http.StatusNotFound)
+		return
 	}
 
-	fileBytes, err := os.ReadFile(fmt.Sprintf("%s%s", "metadata/", ps.ByName("tokenId")))
-	if err != nil {
-		fmt.Fprintf(w, "Metadata For Token: %s Not Found\n", ps.ByName("tokenId"))
+	// Check sync.Map to see if token mint status has been recorded
+	if _, ok := mintedStatus.Load(tokenID); !ok {
+		// If not in map, set token as minted in the map
+		mintedStatus.Store(tokenID, true)
 	}
+
+	// Set cache control for successful responses
+	w.Header().Set("Cache-Control", "public, max-age=300")
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+
+	// Serve the metadata file
+	fileBytes, err := os.ReadFile(fmt.Sprintf("metadata/%d", tokenID))
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Metadata for token %d not found\n", tokenID), http.StatusNotFound)
+		return
+	}
 	w.Write(fileBytes)
 }
 
 // Use infura to check if token has been minted using contracts onlyOwner() function.
-func Minted(c *ethclient.Client, token int64) bool {
-	address := common.HexToAddress(os.Getenv("CONTRACT_ADDRESS"))
-	instance, err := NewStorage(address, c)
+func isMinted(c *ethclient.Client, tokenID int64) bool {
+	contractAddress := getContractAddress()
+	instance, err := NewStorage(contractAddress, c)
 	if err != nil {
-		log.Fatalf("Failed to instantiate contract: %v", err)
+		log.Printf("Failed to instantiate contract: %v", err)
+		return false
 	}
 
-	owner, _ := instance.OwnerOf(&bind.CallOpts{}, big.NewInt(token))
+	owner, _ := instance.OwnerOf(&bind.CallOpts{}, big.NewInt(tokenID))
 
 	return owner != common.HexToAddress("0x0000000000000000000000000000000000000000")
+}
+
+func getContractAddress() common.Address {
+	address := os.Getenv("CONTRACT_ADDRESS")
+	if address == "" {
+		log.Fatal("$CONTRACT_ADDRESS must be set")
+	}
+	return common.HexToAddress(address)
 }
 
 func main() {
@@ -86,11 +103,15 @@ func main() {
 		log.Fatal("$PORT must be set")
 	}
 
-	w, _ := NewWeb3(infura)
+	if infura == "" {
+		log.Fatal("$INFURA must be set")
+	}
+
+	w, _ := newWeb3(infura)
 
 	router := httprouter.New()
-	router.GET("/", Index)
-	router.GET("/metadata/:tokenId", w.Metadata)
+	router.GET("/", indexHandler)
+	router.GET("/metadata/:tokenId", w.metadataHandler)
 
 	log.Fatal(http.ListenAndServe(":"+port, router))
 }
