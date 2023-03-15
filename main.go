@@ -48,8 +48,10 @@ func (c *web3) metadataHandler(w http.ResponseWriter, r *http.Request, ps httpro
 	// Set default cache control for failures
 	w.Header().Set("Cache-Control", "public, no-cache")
 
-	// Check if token is minted
-	if !isMinted(c.client, tokenID) {
+	// Check if token is minted if enabled
+	checkowner, _ := strconv.ParseBool(os.Getenv("CHECK_OWNER"))
+
+	if checkowner && !isMinted(c.client, tokenID) {
 		http.Error(w, fmt.Sprintf("Token %d Not Minted\n", tokenID), http.StatusNotFound)
 		return
 	}
