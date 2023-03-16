@@ -14,7 +14,11 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"golang.org/x/time/rate"
 )
+
+// Rate limit requests 10 per second
+var limiter = rate.NewLimiter(10, 3)
 
 type web3 struct {
 	client *ethclient.Client
@@ -51,17 +55,31 @@ func (c *web3) metadataHandler(w http.ResponseWriter, r *http.Request, ps httpro
 	// Check if token is minted if enabled
 	checkowner, _ := strconv.ParseBool(os.Getenv("CHECK_OWNER"))
 
+	// Check if token in mapping
+	_, ok := mintedStatus.Load(tokenID)
+
+	if ok {
+		serveMetadata(w, tokenID)
+		return
+	}
+
+	// Rate limit infura requests
+	if limiter.Allow() == false {
+		http.Error(w, http.StatusText(429), http.StatusTooManyRequests)
+		return
+	}
+
 	if checkowner && !isMinted(c.client, tokenID) {
 		http.Error(w, fmt.Sprintf("Token %d Not Minted\n", tokenID), http.StatusNotFound)
 		return
 	}
 
-	// Check sync.Map to see if token mint status has been recorded
-	if _, ok := mintedStatus.Load(tokenID); !ok {
-		// If not in map, set token as minted in the map
-		mintedStatus.Store(tokenID, true)
-	}
+	// Set token as minted in the map
+	mintedStatus.Store(tokenID, true)
+	serveMetadata(w, tokenID)
+}
 
+func serveMetadata(w http.ResponseWriter, tokenID int64) {
 	// Set cache control for successful responses
 	w.Header().Set("Cache-Control", "public, max-age=300")
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
@@ -73,6 +91,7 @@ func (c *web3) metadataHandler(w http.ResponseWriter, r *http.Request, ps httpro
 		return
 	}
 	w.Write(fileBytes)
+	return
 }
 
 // Use infura to check if token has been minted using contracts onlyOwner() function.
@@ -84,7 +103,10 @@ func isMinted(c *ethclient.Client, tokenID int64) bool {
 		return false
 	}
 
-	owner, _ := instance.OwnerOf(&bind.CallOpts{}, big.NewInt(tokenID))
+	owner, err := instance.OwnerOf(&bind.CallOpts{}, big.NewInt(tokenID))
+	if err != nil {
+		log.Printf("Infura Error: %v", err)
+	}
 
 	return owner != common.HexToAddress("0x0000000000000000000000000000000000000000")
 }
