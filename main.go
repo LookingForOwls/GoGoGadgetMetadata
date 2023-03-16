@@ -13,15 +13,11 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"golang.org/x/time/rate"
 )
 
 type web3 struct {
 	client *ethclient.Client
 }
-
-// Rate limit requests 10 per second
-var limiter = rate.NewLimiter(20, 3)
 
 // Total number of minted tokens
 var totalSupply int64
